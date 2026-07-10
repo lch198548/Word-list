@@ -1,0 +1,8 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "dictation-app"
+compatibility_date = "2026-07-10"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "dictation-db"
+database_id = "97166a19-87f9-41e2-84a0-884b935e7adb"
