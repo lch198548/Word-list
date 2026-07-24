@@ -51,25 +51,18 @@ export function DictationPlayer({ words, settings, onComplete }: DictationPlayer
   };
 
   useEffect(() => {
-    if (isPlaying) {
-      if (playCount < settings.repeatCount) {
-        timeoutRef.current = setTimeout(() => {
-          speakCurrent();
-          setPlayCount((prev) => prev + 1);
-        }, settings.interval * 1000);
-      } else if (settings.type === 'offline') {
-        // Auto-advance after repeatCount is finished in offline mode
-        timeoutRef.current = setTimeout(() => {
-          handleNext();
-        }, settings.interval * 1000);
-      }
+    if (isPlaying && playCount < settings.repeatCount) {
+      timeoutRef.current = setTimeout(() => {
+        speakCurrent();
+        setPlayCount((prev) => prev + 1);
+      }, settings.interval * 1000);
     }
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [playCount, isPlaying, settings, speakCurrent, currentIndex]);
+  }, [playCount, isPlaying, settings, speakCurrent]);
 
   const handlePlay = () => {
     setIsPlaying(!isPlaying);
