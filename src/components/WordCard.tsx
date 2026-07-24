@@ -54,15 +54,15 @@ export function WordCard({ word, index, onEdit }: WordCardProps) {
         />
         <span className="text-sm font-semibold text-gray-400 w-5 text-right flex-shrink-0">{index}.</span>
         
-        <div className="flex-1 min-w-0">
+        <button
+          onClick={handleSpeak}
+          className="flex-1 min-w-0 text-left group"
+          aria-label="播放发音"
+        >
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleSpeak}
-              className="p-1.5 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors"
-              aria-label="播放发音"
-            >
+            <div className="p-1.5 rounded-full bg-blue-50 group-hover:bg-blue-100 text-blue-600 transition-colors flex-shrink-0">
               <Volume2 className="w-4 h-4" />
-            </button>
+            </div>
             <span className="text-lg font-semibold text-gray-800 truncate">{word.english}</span>
           {word.pos && (
             <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">
@@ -76,7 +76,10 @@ export function WordCard({ word, index, onEdit }: WordCardProps) {
           </p>
           {needRetry && (
             <button
-              onClick={handleRefreshTranslation}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRefreshTranslation();
+              }}
               disabled={isRefreshing || loading}
               className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-500 transition-colors"
               aria-label="重试翻译"
@@ -85,7 +88,7 @@ export function WordCard({ word, index, onEdit }: WordCardProps) {
             </button>
           )}
         </div>
-      </div>
+        </button>
       </div>
       <div className="flex items-center gap-1">
         {onEdit && (

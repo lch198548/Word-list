@@ -195,22 +195,13 @@ export default defineConfig({
       },
     }),
     tsconfigPaths(),
-    {
-      name: 'api-middleware',
-      configureServer(server) {
-        server.middlewares.use(handleApiRequests);
-      },
-      configurePreviewServer(server) {
-        server.middlewares.use(handleApiRequests);
-      },
-    },
   ],
   server: {
     proxy: {
-      '/api/baidu-translate': {
-        target: 'https://fanyi-api.baidu.com',
+      '/api': {
+        target: 'https://wordlist.edgeone.dev',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/baidu-translate/, '/api/trans/vip/translate'),
+        secure: true,
       },
     },
   },

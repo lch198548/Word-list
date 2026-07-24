@@ -39,14 +39,16 @@ export function DictationPlayer({ words, settings, onComplete }: DictationPlayer
     }
   }, [isPlaying, currentWord, speakCurrent]);
 
+  const [hasInteracted, setHasInteracted] = useState(false);
+
   useEffect(() => {
     inputRef.current?.focus();
-    if (currentWord) {
-      setTimeout(() => {
-        setIsPlaying(true);
-      }, 500);
-    }
   }, []);
+
+  const handleInitialPlay = () => {
+    setHasInteracted(true);
+    setIsPlaying(true);
+  };
 
   useEffect(() => {
     if (isPlaying) {
@@ -134,6 +136,49 @@ export function DictationPlayer({ words, settings, onComplete }: DictationPlayer
 
   if (!currentWord) {
     return <div className="text-center text-gray-500">没有单词</div>;
+  }
+
+  if (!hasInteracted) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-medium text-gray-600">
+              进度: {currentIndex + 1} / {words.length}
+            </span>
+            {settings.type !== 'offline' && (
+              <span className="text-sm font-medium text-green-600">
+                正确: {correctCount}
+              </span>
+            )}
+          </div>
+          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-500"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 text-center">
+          <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-blue-100 text-blue-600 mb-6">
+            <Volume2 className="w-12 h-12" />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">准备好了吗？</h2>
+          <p className="text-gray-500 mb-8">
+            {settings.type === 'offline'
+              ? (settings.mode === 'chinese' ? '听中文，在纸上写出英文' : '听英文，在纸上写出中文')
+              : (settings.mode === 'chinese' ? '听中文，写出英文单词' : '听英文，写出中文释义')}
+          </p>
+          <button
+            onClick={handleInitialPlay}
+            className="w-full py-4 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-bold text-lg hover:from-blue-600 hover:to-cyan-600 transition-all shadow-lg"
+          >
+            开始听写
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
