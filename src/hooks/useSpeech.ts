@@ -10,32 +10,62 @@ const SPEED_MAP: Record<Speed, number> = {
 
 export function useSpeech() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const blobUrlRef = useRef<string | null>(null);
 
   const playAudio = useCallback((url: string) => {
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.src = '';
+      audioRef.current = null;
     }
 
-    const audio = new Audio(url);
-    audioRef.current = audio;
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = null;
+    }
 
-    audio.play().catch((err) => {
-      console.warn('Audio playback failed:', err);
-    });
+    fetch(url)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.blob();
+      })
+      .then(blob => {
+        const blobUrl = URL.createObjectURL(blob);
+        blobUrlRef.current = blobUrl;
+        
+        const audio = new Audio(blobUrl);
+        audioRef.current = audio;
+        
+        audio.play().catch((err) => {
+          console.warn('Audio playback failed:', err);
+        });
+
+        audio.onended = () => {
+          if (blobUrlRef.current) {
+            URL.revokeObjectURL(blobUrlRef.current);
+            blobUrlRef.current = null;
+          }
+          audioRef.current = null;
+        };
+      })
+      .catch(err => {
+        console.warn('Failed to fetch audio:', err);
+      });
   }, []);
 
   const speakEnglish = useCallback((text: string, speed: Speed = 'medium') => {
     const encodedText = encodeURIComponent(text);
     const spd = SPEED_MAP[speed];
-    const url = `https://fanyi.baidu.com/gettts?lan=en&text=${encodedText}&spd=${spd}&source=web`;
+    const url = `/api/baidu-tts?lan=en&text=${encodedText}&spd=${spd}`;
     playAudio(url);
   }, [playAudio]);
 
   const speakChinese = useCallback((text: string, speed: Speed = 'medium') => {
     const encodedText = encodeURIComponent(text);
     const spd = SPEED_MAP[speed];
-    const url = `https://fanyi.baidu.com/gettts?lan=zh&text=${encodedText}&spd=${spd}&source=web`;
+    const url = `/api/baidu-tts?lan=zh&text=${encodedText}&spd=${spd}`;
     playAudio(url);
   }, [playAudio]);
 
@@ -44,6 +74,10 @@ export function useSpeech() {
       audioRef.current.pause();
       audioRef.current.src = '';
       audioRef.current = null;
+    }
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = null;
     }
   }, []);
 

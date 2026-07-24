@@ -198,6 +198,12 @@ export default defineConfig({
   ],
   server: {
     proxy: {
+      '/api/baidu-tts': {
+        target: 'https://fanyi.baidu.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api\/baidu-tts/, '/gettts'),
+      },
       '/api': {
         target: 'https://wordlist.edgeone.dev',
         changeOrigin: true,
