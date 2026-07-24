@@ -46,13 +46,13 @@ export function WordCard({ word, index, onEdit }: WordCardProps) {
   const isSingleWord = !word.english.includes(' ') && word.english.length <= 30;
 
   return (
-    <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center justify-between gap-3 transition-all duration-300 hover:shadow-md hover:border-blue-200">
-      <div className="flex items-center gap-3 flex-1 min-w-0">
+    <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-start justify-between gap-3 transition-all duration-300 hover:shadow-md hover:border-blue-200">
+      <div className="flex items-start gap-3 flex-1 min-w-0">
         <input
           type="checkbox"
           checked={isSelected}
           onChange={handleToggleSelect}
-          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer flex-shrink-0"
+          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer flex-shrink-0 mt-1"
         />
         <span className="text-sm font-semibold text-gray-400 w-5 text-right flex-shrink-0">{index}.</span>
         
@@ -61,43 +61,47 @@ export function WordCard({ word, index, onEdit }: WordCardProps) {
           className="flex-1 min-w-0 text-left group"
           aria-label="播放发音"
         >
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-full bg-blue-50 group-hover:bg-blue-100 text-blue-600 transition-colors flex-shrink-0">
+          <div className="flex items-start gap-2">
+            <div className="p-1.5 rounded-full bg-blue-50 group-hover:bg-blue-100 text-blue-600 transition-colors flex-shrink-0 mt-0.5">
               <Volume2 className="w-4 h-4" />
             </div>
-            <span className="text-lg font-semibold text-gray-800 truncate">{word.english}</span>
-          {word.pos && (
-            <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">
-              {word.pos}
-            </span>
-          )}
-        </div>
-        {isSingleWord && word.phonetic && (
-          <div className="text-sm text-gray-400 mt-0.5 font-mono">
-            {word.phonetic}
+            <div className="flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-lg font-semibold text-gray-800 break-words">{word.english}</span>
+                {word.pos && (
+                  <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">
+                    {word.pos}
+                  </span>
+                )}
+              </div>
+              {isSingleWord && word.phonetic && (
+                <div className="text-sm text-gray-400 mt-0.5 font-mono">
+                  {word.phonetic}
+                </div>
+              )}
+              <div className="flex items-start gap-2 mt-1">
+                <p className={`text-sm ${needRetry ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {word.chinese || '暂无释义'}
+                </p>
+                {needRetry && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRefreshTranslation();
+                    }}
+                    disabled={isRefreshing || loading}
+                    className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-500 transition-colors flex-shrink-0 mt-0.5"
+                    aria-label="重试翻译"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
-        )}
-        <div className="flex items-center gap-2 mt-1">
-          <p className={`text-sm truncate ${needRetry ? 'text-gray-400' : 'text-gray-600'}`}>
-            {word.chinese || '暂无释义'}
-          </p>
-          {needRetry && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleRefreshTranslation();
-              }}
-              disabled={isRefreshing || loading}
-              className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-500 transition-colors"
-              aria-label="重试翻译"
-            >
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            </button>
-          )}
-        </div>
         </button>
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 flex-shrink-0">
         {onEdit && (
           <button
             onClick={onEdit}
