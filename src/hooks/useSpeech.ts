@@ -3,41 +3,51 @@ import { useCallback, useRef } from 'react';
 type Speed = 'slow' | 'medium' | 'fast';
 
 const SPEED_MAP: Record<Speed, number> = {
-  slow: 0.5,
-  medium: 1,
-  fast: 1.5,
+  slow: 2,
+  medium: 3,
+  fast: 4,
 };
 
 export function useSpeech() {
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const speak = useCallback((text: string, speed: Speed = 'medium', lang: string = 'en-US') => {
-    window.speechSynthesis.cancel();
+  const playAudio = useCallback((url: string) => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+    }
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = lang;
-    utterance.rate = SPEED_MAP[speed];
-    utterance.pitch = 1;
-    utterance.volume = 1;
+    const audio = new Audio(url);
+    audioRef.current = audio;
 
-    utteranceRef.current = utterance;
-    window.speechSynthesis.speak(utterance);
+    audio.play().catch((err) => {
+      console.warn('Audio playback failed:', err);
+    });
   }, []);
 
   const speakEnglish = useCallback((text: string, speed: Speed = 'medium') => {
-    speak(text, speed, 'en-US');
-  }, [speak]);
+    const encodedText = encodeURIComponent(text);
+    const spd = SPEED_MAP[speed];
+    const url = `https://fanyi.baidu.com/gettts?lan=en&text=${encodedText}&spd=${spd}&source=web`;
+    playAudio(url);
+  }, [playAudio]);
 
   const speakChinese = useCallback((text: string, speed: Speed = 'medium') => {
-    speak(text, speed, 'zh-CN');
-  }, [speak]);
+    const encodedText = encodeURIComponent(text);
+    const spd = SPEED_MAP[speed];
+    const url = `https://fanyi.baidu.com/gettts?lan=zh&text=${encodedText}&spd=${spd}&source=web`;
+    playAudio(url);
+  }, [playAudio]);
 
   const stop = useCallback(() => {
-    window.speechSynthesis.cancel();
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+      audioRef.current = null;
+    }
   }, []);
 
   return {
-    speak,
     speakEnglish,
     speakChinese,
     stop,

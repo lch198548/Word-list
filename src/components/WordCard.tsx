@@ -30,8 +30,8 @@ export function WordCard({ word, index, onEdit }: WordCardProps) {
   const handleRefreshTranslation = async () => {
     if (isRefreshing) return;
     setIsRefreshing(true);
-    const { chinese, pos } = await updateWordTranslation(word);
-    updateWord(word.id, { chinese, pos });
+    const { chinese, pos, phonetic } = await updateWordTranslation(word);
+    updateWord(word.id, { chinese, pos, phonetic });
     setIsRefreshing(false);
   };
 
@@ -42,6 +42,8 @@ export function WordCard({ word, index, onEdit }: WordCardProps) {
   };
 
   const isSelected = word.selected !== false;
+
+  const isSingleWord = !word.english.includes(' ') && word.english.length <= 30;
 
   return (
     <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center justify-between gap-3 transition-all duration-300 hover:shadow-md hover:border-blue-200">
@@ -70,6 +72,11 @@ export function WordCard({ word, index, onEdit }: WordCardProps) {
             </span>
           )}
         </div>
+        {isSingleWord && word.phonetic && (
+          <div className="text-sm text-gray-400 mt-0.5 font-mono">
+            {word.phonetic}
+          </div>
+        )}
         <div className="flex items-center gap-2 mt-1">
           <p className={`text-sm truncate ${needRetry ? 'text-gray-400' : 'text-gray-600'}`}>
             {word.chinese || '暂无释义'}

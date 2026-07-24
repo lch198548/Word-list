@@ -4,6 +4,11 @@ import { useWordStore } from '../stores/wordStore';
 
 interface DictionaryResponse {
   word: string;
+  phonetic?: string;
+  phonetics?: {
+    text?: string;
+    audio?: string;
+  }[];
   meanings: {
     partOfSpeech: string;
     definitions: {
@@ -270,7 +275,7 @@ export function useDictionary() {
     }
   }, []);
 
-  const fetchWordInfo = useCallback(async (english: string): Promise<{ chinese: string; pos: string }> => {
+  const fetchWordInfo = useCallback(async (english: string): Promise<{ chinese: string; pos: string; phonetic?: string }> => {
     setLoading(true);
     setError(null);
 
@@ -285,9 +290,20 @@ export function useDictionary() {
       const chinese = translationRes || '暂无释义';
       
       let pos = '';
+      let phonetic: string | undefined;
       
       if (dictionaryRes && Array.isArray(dictionaryRes) && dictionaryRes.length > 0) {
         const wordData = dictionaryRes[0] as DictionaryResponse;
+        
+        if (wordData.phonetic) {
+          phonetic = wordData.phonetic;
+        } else if (wordData.phonetics && wordData.phonetics.length > 0) {
+          const englishPhonetic = wordData.phonetics.find(p => p.text);
+          if (englishPhonetic?.text) {
+            phonetic = englishPhonetic.text;
+          }
+        }
+        
         if (wordData.meanings && wordData.meanings.length > 0) {
           const firstMeaning = wordData.meanings[0];
           if (firstMeaning.partOfSpeech) {
@@ -300,7 +316,7 @@ export function useDictionary() {
         pos = guessPOS(english);
       }
 
-      return { chinese, pos };
+      return { chinese, pos, phonetic };
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch word info');
       const chinese = await fetchTranslation(english);
@@ -311,19 +327,20 @@ export function useDictionary() {
   }, [fetchTranslation]);
 
   const createWord = useCallback(async (english: string): Promise<Word> => {
-    const { chinese, pos } = await fetchWordInfo(english);
+    const { chinese, pos, phonetic } = await fetchWordInfo(english);
     return {
       id: Date.now().toString() + Math.random(),
       english: english.trim(),
       chinese,
       pos,
+      phonetic,
       createdAt: Date.now(),
     };
   }, [fetchWordInfo]);
 
-  const updateWordTranslation = useCallback(async (word: Word): Promise<{ chinese: string; pos: string }> => {
-    const { chinese, pos } = await fetchWordInfo(word.english);
-    return { chinese, pos };
+  const updateWordTranslation = useCallback(async (word: Word): Promise<{ chinese: string; pos: string; phonetic?: string }> => {
+    const { chinese, pos, phonetic } = await fetchWordInfo(word.english);
+    return { chinese, pos, phonetic };
   }, [fetchWordInfo]);
 
   return { fetchWordInfo, createWord, updateWordTranslation, loading, error };

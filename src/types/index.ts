@@ -3,6 +3,7 @@ export interface Word {
   english: string;
   chinese: string;
   pos: string;
+  phonetic?: string;
   selected?: boolean;
   createdAt: number;
 }
