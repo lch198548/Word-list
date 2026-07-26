@@ -28,6 +28,7 @@ interface WordStore {
   addWordBook: (name: string) => void;
   removeWordBook: (id: string) => void;
   setActiveBookId: (id: string | null) => void;
+  renameWordBook: (id: string, newName: string) => void;
   fetchWordBooks: () => Promise<void>;
   
   // Word actions (now scoped to active word book)
@@ -213,6 +214,23 @@ export const useWordStore = create<WordStore>((set, get) => ({
     const activeBook = state.wordBooks.find((b) => b.id === id);
     return {
       activeBookId: id,
+      words: activeBook ? activeBook.words : [],
+    };
+  }),
+
+  renameWordBook: (id, newName) => set((state) => {
+    const trimmedName = newName.trim();
+    if (!trimmedName) {
+      alert('单词本名称不能为空');
+      return {};
+    }
+    const updatedBooks = state.wordBooks.map((b) =>
+      b.id === id ? { ...b, name: trimmedName } : b
+    );
+    saveWordBooksToServer(updatedBooks);
+    const activeBook = updatedBooks.find((b) => b.id === state.activeBookId);
+    return {
+      wordBooks: updatedBooks,
       words: activeBook ? activeBook.words : [],
     };
   }),

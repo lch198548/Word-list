@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Camera, Plus, FileText, Volume2, Trash2, BookOpen, Layers, FolderPlus, PlayCircle } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Camera, Plus, FileText, Volume2, Trash2, BookOpen, Layers, FolderPlus, PlayCircle, ChevronDown, Edit3, Check, X } from 'lucide-react';
 import { WordCard } from '../components/WordCard';
 import { CameraModal } from '../components/CameraModal';
 import { AddWordModal } from '../components/AddWordModal';
@@ -20,6 +20,7 @@ export default function Home({ onNavigate }: HomeProps) {
     addWordBook,
     removeWordBook,
     setActiveBookId,
+    renameWordBook,
     fetchWordBooks,
     toggleAllWordsSelection,
   } = useWordStore();
@@ -28,10 +29,46 @@ export default function Home({ onNavigate }: HomeProps) {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isBatchAddOpen, setIsBatchAddOpen] = useState(false);
   const [editWord, setEditWord] = useState<Word | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchWordBooks();
   }, [fetchWordBooks]);
+
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+        setEditingId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [dropdownOpen]);
+
+  const handleStartRename = (book: { id: string; name: string }) => {
+    setEditingId(book.id);
+    setEditingName(book.name);
+  };
+
+  const handleConfirmRename = () => {
+    if (editingId) {
+      renameWordBook(editingId, editingName);
+      setEditingId(null);
+      setEditingName('');
+    }
+  };
+
+  const handleCancelRename = () => {
+    setEditingId(null);
+    setEditingName('');
+  };
+
+  const sortedBooks = [...wordBooks].sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
 
   const handleClear = () => {
     if (words.length > 0 && window.confirm('确定清空当前单词本的所有单词吗？')) {
@@ -86,21 +123,110 @@ export default function Home({ onNavigate }: HomeProps) {
           {/* Word Book Selector */}
           <div className="mt-4 bg-white/60 p-2 rounded-xl border border-gray-150 flex items-center gap-2 shadow-sm">
             <span className="text-xs font-semibold text-gray-500 whitespace-nowrap px-1">当前单词本:</span>
-            {wordBooks.length > 0 ? (
-              <select
-                value={activeBookId || ''}
-                onChange={(e) => setActiveBookId(e.target.value || null)}
-                className="flex-1 bg-transparent text-sm font-semibold text-gray-800 focus:outline-none cursor-pointer"
-              >
-                {wordBooks.map((book) => (
-                  <option key={book.id} value={book.id}>
-                    {book.name} ({book.words.length}个单词)
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <span className="flex-1 text-xs text-gray-400">请点击右侧按钮新建单词本</span>
-            )}
+            <div ref={dropdownRef} className="relative flex-1">
+              {wordBooks.length > 0 ? (
+                <>
+                  <button
+                    onClick={() => {
+                      setDropdownOpen(!dropdownOpen);
+                      setEditingId(null);
+                    }}
+                    className="w-full flex items-center justify-between bg-transparent text-sm font-semibold text-gray-800 focus:outline-none cursor-pointer px-1 py-1 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <span className="truncate">{activeBookName} ({words.length})</span>
+                    <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  
+                  {dropdownOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden">
+                      <div className="max-h-64 overflow-y-auto">
+                        {sortedBooks.map((book) => (
+                          <div
+                            key={book.id}
+                            className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-blue-50 transition-colors ${
+                              book.id === activeBookId ? 'bg-blue-50' : ''
+                            }`}
+                            onClick={() => {
+                              if (editingId === book.id) return;
+                              setActiveBookId(book.id);
+                              setDropdownOpen(false);
+                            }}
+                          >
+                            {editingId === book.id ? (
+                              <div className="flex-1 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="text"
+                                  value={editingName}
+                                  onChange={(e) => setEditingName(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleConfirmRename();
+                                    if (e.key === 'Escape') handleCancelRename();
+                                  }}
+                                  autoFocus
+                                  className="flex-1 text-sm px-2 py-1 border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleConfirmRename();
+                                  }}
+                                  className="p-1 rounded hover:bg-green-100 text-green-600 transition-colors"
+                                  title="确认"
+                                >
+                                  <Check className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCancelRename();
+                                  }}
+                                  className="p-1 rounded hover:bg-gray-100 text-gray-500 transition-colors"
+                                  title="取消"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-medium text-gray-800 truncate">{book.name}</div>
+                                  <div className="text-xs text-gray-400">{book.words.length} 个单词</div>
+                                </div>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleStartRename(book);
+                                  }}
+                                  className="p-1 rounded hover:bg-blue-100 text-gray-400 hover:text-blue-600 transition-colors"
+                                  title="重命名"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (window.confirm(`确定删除单词本 "${book.name}" 吗？本内单词将全部清空。`)) {
+                                      removeWordBook(book.id);
+                                    }
+                                  }}
+                                  className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500 transition-colors"
+                                  title="删除"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <span className="flex-1 text-xs text-gray-400 px-1">请点击右侧按钮新建单词本</span>
+              )}
+            </div>
             
             <button
               onClick={() => {
@@ -114,21 +240,6 @@ export default function Home({ onNavigate }: HomeProps) {
             >
               <FolderPlus className="w-4 h-4" />
             </button>
-            
-            {activeBookId && (
-              <button
-                onClick={() => {
-                  const book = wordBooks.find(b => b.id === activeBookId);
-                  if (book && window.confirm(`确定删除单词本 "${book.name}" 吗？本内单词将全部清空。`)) {
-                    removeWordBook(activeBookId);
-                  }
-                }}
-                className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors"
-                title="删除当前单词本"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            )}
           </div>
         </div>
       </header>
