@@ -8,10 +8,11 @@ export const onRequest = async (context) => {
   const url = new URL(request.url);
   const word = (url.searchParams.get('word') || '').trim();
   const cors = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
-  const empty = { word, phonetic: null, phoneticUK: null, pos: null };
+  const empty = { word, phonetic: null, phoneticUK: null, pos: null, examples: [] };
   if (!word) return new Response(JSON.stringify(empty), { status: 200, headers: cors });
 
   const result = { ...empty };
+  result.examples = [];
 
   // 第一源：dictionaryapi.dev
   try {
@@ -35,6 +36,15 @@ export const onRequest = async (context) => {
         result.pos = m[w.meanings[0].partOfSpeech] || w.meanings[0].partOfSpeech;
       }
       if (phonetic) result.phonetic = phonetic;
+      if (Array.isArray(w.meanings)) {
+        for (const m of w.meanings) {
+          for (const d of (m.definitions || [])) {
+            if (d.example && result.examples.length < 3 && !result.examples.includes(d.example)) {
+              result.examples.push(d.example);
+            }
+          }
+        }
+      }
     }
   } catch {}
 

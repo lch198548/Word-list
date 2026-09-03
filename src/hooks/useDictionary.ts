@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { Word } from '../types';
 import { useWordStore } from '../stores/wordStore';
 
@@ -13,6 +13,7 @@ interface DictionaryResponse {
     partOfSpeech: string;
     definitions: {
       definition: string;
+      example?: string;
     }[];
   }[];
 }
@@ -70,19 +71,19 @@ const POS_SUFFIXES: Array<{ suffix: string; pos: string }> = [
 
 function guessPOS(word: string): string {
   const lowerWord = word.toLowerCase();
-  
+
   for (const { pattern, pos } of POS_PATTERNS) {
     if (pattern.test(lowerWord)) {
       return pos;
     }
   }
-  
+
   for (const { suffix, pos } of POS_SUFFIXES) {
     if (lowerWord.endsWith(suffix)) {
       return pos;
     }
   }
-  
+
   return '';
 }
 
@@ -136,42 +137,42 @@ function stringToUTF8Bytes(str: string): number[] {
 function md5(input: string): string {
   const bytes = stringToUTF8Bytes(input);
   const origLengthInBits = bytes.length * 8;
-  
+
   bytes.push(0x80);
   while ((bytes.length % 64) !== 56) {
     bytes.push(0);
   }
-  
+
   const lowBits = origLengthInBits & 0xffffffff;
   const highBits = Math.floor(origLengthInBits / 0x100000000) & 0xffffffff;
-  
+
   bytes.push(lowBits & 0xff);
   bytes.push((lowBits >>> 8) & 0xff);
   bytes.push((lowBits >>> 16) & 0xff);
   bytes.push((lowBits >>> 24) & 0xff);
-  
+
   bytes.push(highBits & 0xff);
   bytes.push((highBits >>> 8) & 0xff);
   bytes.push((highBits >>> 16) & 0xff);
   bytes.push((highBits >>> 24) & 0xff);
-  
+
   let a = 0x67452301;
   let b = 0xefcdab89;
   let c = 0x98badcfe;
   let d = 0x10325476;
-  
+
   for (let i = 0; i < bytes.length; i += 64) {
     const chunk = bytes.slice(i, i + 64);
     const words: number[] = [];
     for (let j = 0; j < 64; j += 4) {
       words.push((chunk[j] | (chunk[j + 1] << 8) | (chunk[j + 2] << 16) | (chunk[j + 3] << 24)) >>> 0);
     }
-    
+
     const aa = a;
     const bb = b;
     const cc = c;
     const dd = d;
-    
+
     for (let j = 0; j < 64; j++) {
       let f = 0;
       let g = 0;
@@ -188,25 +189,25 @@ function md5(input: string): string {
         f = c ^ (b | ~d);
         g = (7 * j) % 16;
       }
-      
+
       const temp = d;
       d = c;
       c = b;
-      
+
       const sum = (a + f + MD5_TABLE[j] + words[g]) >>> 0;
       const s = MD5_ROUNDS[j];
       const rotated = ((sum << s) | (sum >>> (32 - s))) >>> 0;
       b = (b + rotated) >>> 0;
-      
+
       a = temp;
     }
-    
+
     a = (a + aa) >>> 0;
     b = (b + bb) >>> 0;
     c = (c + cc) >>> 0;
     d = (d + dd) >>> 0;
   }
-  
+
   const toHex = (n: number) => {
     const b1 = n & 0xff;
     const b2 = (n >>> 8) & 0xff;
@@ -214,31 +215,75 @@ function md5(input: string): string {
     const b4 = (n >>> 24) & 0xff;
     return [b1, b2, b3, b4].map(b => b.toString(16).padStart(2, '0')).join('');
   };
-  
+
   return (toHex(a) + toHex(b) + toHex(c) + toHex(d)).toLowerCase();
 }
 
-const QPS_LIMIT = 10;
-const REQUEST_INTERVAL = 1000 / QPS_LIMIT;
+// ---- 本地缓存：音标/词性/翻译/例句，降低重复请求与限流概率，API 抖动时仍可秒显 ----
+const DICT_CACHE_KEY = 'dict_cache_v1';
+const DICT_CACHE_TTL = 30 * 24 * 3600 * 1000; // 30 天
+type CacheEntry = { phonetic?: string; phoneticUK?: string; pos?: string; chinese?: string; examples?: string[]; ts: number };
+let memCache: Record<string, CacheEntry> | null = null;
+function loadCache(): Record<string, CacheEntry> {
+  if (memCache) return memCache;
+  try {
+    memCache = JSON.parse(localStorage.getItem(DICT_CACHE_KEY) || '{}');
+  } catch {
+    memCache = {};
+  }
+  return memCache;
+}
+function saveCache() {
+  try {
+    localStorage.setItem(DICT_CACHE_KEY, JSON.stringify(memCache));
+  } catch {
+    /* 忽略隐私模式等写入失败 */
+  }
+}
+function cacheGet(word: string): CacheEntry | undefined {
+  const c = loadCache()[word.toLowerCase()];
+  if (c && Date.now() - c.ts < DICT_CACHE_TTL) return c;
+  return undefined;
+}
+function cacheSet(word: string, e: Partial<CacheEntry>) {
+  const c = loadCache();
+  const merged: CacheEntry = { ...c[word.toLowerCase()] } as CacheEntry;
+  for (const [k, v] of Object.entries(e)) {
+    if (v !== undefined) (merged as Record<string, unknown>)[k] = v;
+  }
+  merged.ts = Date.now();
+  c[word.toLowerCase()] = merged;
+  saveCache();
+}
+
+// ---- 全局翻译限流：串行化所有 /api/baidu-translate 出站请求，避免批量加词并发超 QPS ----
+let throttleChain: Promise<void> = Promise.resolve();
+let lastTranslate = 0;
+const TRANSLATE_INTERVAL = 120; // ms ≈ 8 QPS，低于百度限制
+function throttleTranslate(): Promise<void> {
+  const run = throttleChain.then(async () => {
+    const wait = Math.max(0, TRANSLATE_INTERVAL - (Date.now() - lastTranslate));
+    if (wait) await new Promise((r) => setTimeout(r, wait));
+    lastTranslate = Date.now();
+  });
+  throttleChain = run.catch(() => {});
+  return run;
+}
 
 export function useDictionary() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const lastRequestTime = useRef(0);
 
   const fetchTranslation = useCallback(async (english: string, retryCount: number = 0): Promise<string> => {
+    const key = english.trim().toLowerCase();
+    const cached = cacheGet(key);
+    if (cached?.chinese) return cached.chinese;
     try {
-      const now = Date.now();
-      const timeSinceLastRequest = now - lastRequestTime.current;
-      if (timeSinceLastRequest < REQUEST_INTERVAL) {
-        await new Promise((resolve) => setTimeout(resolve, REQUEST_INTERVAL - timeSinceLastRequest));
-      }
-      lastRequestTime.current = Date.now();
-
+      await throttleTranslate();
       const { baiduAppId, baiduKey } = useWordStore.getState().config;
       const salt = Date.now().toString();
       const sign = md5(baiduAppId + english + salt + baiduKey);
-      
+
       const params = new URLSearchParams({
         q: english,
         from: 'en',
@@ -247,10 +292,10 @@ export function useDictionary() {
         salt,
         sign,
       });
-      
+
       const response = await fetch(`/api/baidu-translate?${params}`);
       const data: BaiduResponse = await response.json();
-      
+
       if (data.error_code) {
         if (data.error_code === '54001' || data.error_code === '54003' || data.error_code === '54004') {
           if (retryCount < 3) {
@@ -260,11 +305,13 @@ export function useDictionary() {
         }
         return '暂无释义';
       }
-      
+
       if (data.trans_result && data.trans_result.length > 0) {
-        return data.trans_result[0].dst;
+        const dst = data.trans_result[0].dst;
+        cacheSet(key, { chinese: dst });
+        return dst;
       }
-      
+
       return '暂无释义';
     } catch {
       if (retryCount < 3) {
@@ -275,9 +322,29 @@ export function useDictionary() {
     }
   }, []);
 
-  // 音标 / 词性：优先走服务端 /api/dictionary（含国内有道兜底，境内可达），失败再直连 dictionaryapi.dev
-  const fetchPhonetics = useCallback(async (english: string): Promise<{ phonetic?: string; phoneticUK?: string; pos: string }> => {
+  // 音标 / 词性 / 例句：优先走服务端 /api/dictionary（含国内有道兜底，境内可达），失败再直连 dictionaryapi.dev
+  const fetchPhonetics = useCallback(async (english: string): Promise<{ phonetic?: string; phoneticUK?: string; pos: string; examples?: string[] }> => {
+    const key = english.trim().toLowerCase();
+    const cached = cacheGet(key);
+    if (cached && (cached.phonetic || cached.phoneticUK || cached.pos || (cached.examples && cached.examples.length))) {
+      return { phonetic: cached.phonetic, phoneticUK: cached.phoneticUK, pos: cached.pos || '', examples: cached.examples };
+    }
     const word = english.trim();
+
+    const collectExamples = (data: unknown): string[] => {
+      const out: string[] = [];
+      if (Array.isArray(data)) {
+        for (const w of data as Array<{ meanings?: Array<{ definitions?: Array<{ example?: string }> }> }>) {
+          for (const m of w.meanings || []) {
+            for (const d of m.definitions || []) {
+              if (d.example && out.length < 3 && !out.includes(d.example)) out.push(d.example);
+            }
+          }
+        }
+      }
+      return out;
+    };
+
     try {
       const dr = await fetch(`/api/dictionary?word=${encodeURIComponent(word)}`, { signal: AbortSignal.timeout(5000) });
       if (dr.ok) {
@@ -285,8 +352,12 @@ export function useDictionary() {
         const phonetic = typeof dict.phonetic === 'string' && dict.phonetic ? dict.phonetic : undefined;
         const phoneticUK = typeof dict.phoneticUK === 'string' && dict.phoneticUK ? dict.phoneticUK : undefined;
         const pos = typeof dict.pos === 'string' ? dict.pos : '';
-        if (phonetic || phoneticUK || pos) {
-          return { phonetic, phoneticUK, pos };
+        const examples = Array.isArray(dict.examples)
+          ? dict.examples.filter((e: unknown): e is string => typeof e === 'string').slice(0, 3)
+          : undefined;
+        if (phonetic || phoneticUK || pos || (examples && examples.length)) {
+          cacheSet(key, { phonetic, phoneticUK, pos, examples });
+          return { phonetic, phoneticUK, pos, examples };
         }
       }
     } catch {}
@@ -306,10 +377,14 @@ export function useDictionary() {
         const pos = w.meanings && w.meanings[0]?.partOfSpeech
           ? (POS_MAP[w.meanings[0].partOfSpeech] || w.meanings[0].partOfSpeech)
           : '';
-        if (phonetic || pos) return { phonetic, phoneticUK: undefined, pos };
+        const examples = collectExamples(data);
+        if (phonetic || pos || examples.length) {
+          cacheSet(key, { phonetic, phoneticUK: undefined, pos, examples });
+          return { phonetic, phoneticUK: undefined, pos, examples };
+        }
       }
     } catch {}
-    return { phonetic: undefined, phoneticUK: undefined, pos: '' };
+    return { phonetic: undefined, phoneticUK: undefined, pos: '', examples: undefined };
   }, []);
 
   const fetchWordInfo = useCallback(async (english: string): Promise<{ chinese: string; pos: string; phonetic?: string; phoneticUK?: string }> => {
