@@ -4,6 +4,8 @@ export interface Word {
   chinese: string;
   pos: string;
   phonetic?: string;
+  phoneticUK?: string;
+  mnemonic?: string;
   selected?: boolean;
   createdAt: number;
 }

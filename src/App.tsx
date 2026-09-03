@@ -3,10 +3,12 @@ import Home from '@/pages/Home';
 import Settings from '@/pages/Settings';
 import Dictation from '@/pages/Dictation';
 import Print from '@/pages/Print';
+import Learn from '@/pages/Learn';
 import { Login } from '@/components/Login';
+import { AutoBackfill } from '@/components/AutoBackfill';
 import { useWordStore } from '@/stores/wordStore';
 
-type Page = 'home' | 'settings' | 'dictation' | 'print';
+type Page = 'home' | 'settings' | 'dictation' | 'print' | 'learn';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
@@ -30,6 +32,9 @@ export default function App() {
       case '/dictation':
         setCurrentPage('dictation');
         break;
+      case '/learn':
+        setCurrentPage('learn');
+        break;
       case '/print':
         setCurrentPage('print');
         break;
@@ -47,7 +52,9 @@ export default function App() {
         <Settings onNavigate={handleNavigate} />
       )}
       {currentPage === 'dictation' && <Dictation onNavigate={handleNavigate} />}
+      {currentPage === 'learn' && <Learn onNavigate={handleNavigate} />}
       {currentPage === 'print' && <Print onNavigate={handleNavigate} />}
+      <AutoBackfill />
     </div>
   );
 }

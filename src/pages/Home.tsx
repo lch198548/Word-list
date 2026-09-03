@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Camera, Plus, FileText, Volume2, Trash2, BookOpen, Layers, FolderPlus, PlayCircle, ChevronDown, Edit3, Check, X, Search } from 'lucide-react';
+import { Plus, FileText, Settings, Trash2, BookOpen, Layers, FolderPlus, PlayCircle, ChevronDown, Edit3, Check, X, Search } from 'lucide-react';
 import { WordCard } from '../components/WordCard';
-import { CameraModal } from '../components/CameraModal';
 import { AddWordModal } from '../components/AddWordModal';
 import { BatchAddModal } from '../components/BatchAddModal';
 import { useWordStore } from '../stores/wordStore';
@@ -25,7 +24,6 @@ export default function Home({ onNavigate }: HomeProps) {
     toggleAllWordsSelection,
   } = useWordStore();
 
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isBatchAddOpen, setIsBatchAddOpen] = useState(false);
   const [editWord, setEditWord] = useState<Word | null>(null);
@@ -119,9 +117,9 @@ export default function Home({ onNavigate }: HomeProps) {
               <button
                 onClick={() => onNavigate('/settings')}
                 className="p-3 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 transition-colors shadow-lg shadow-blue-200"
-                aria-label="听写设置"
+                aria-label="系统设置"
               >
-                <Volume2 className="w-5 h-5" />
+                <Settings className="w-5 h-5" />
               </button>
             </div>
           </div>
@@ -293,13 +291,6 @@ export default function Home({ onNavigate }: HomeProps) {
       <main className="max-w-md mx-auto px-4 py-6">
         <div className="flex gap-2 mb-4">
           <button
-            onClick={() => handleAddClick(() => setIsCameraOpen(true))}
-            className="flex-1 py-3 bg-white rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
-          >
-            <Camera className="w-5 h-5 text-blue-600" />
-            <span className="font-medium text-gray-700">拍照识别</span>
-          </button>
-          <button
             onClick={() => handleAddClick(() => {
               setEditWord(null);
               setIsAddOpen(true);
@@ -325,6 +316,26 @@ export default function Home({ onNavigate }: HomeProps) {
             <Trash2 className="w-5 h-5 text-gray-600" />
           </button>
         </div>
+
+        <button
+          onClick={() => {
+            if (words.length === 0) {
+              alert('请先添加单词再开始学习');
+              return;
+            }
+            const selectedCount = words.filter((w) => w.selected !== false).length;
+            if (selectedCount === 0) {
+              alert('请至少勾选一个单词进行学习');
+              return;
+            }
+            onNavigate('/learn');
+          }}
+          disabled={words.length === 0}
+          className="w-full py-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-bold text-lg hover:from-indigo-600 hover:to-purple-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 mb-3"
+        >
+          <BookOpen className="w-6 h-6" />
+          开始学习（卡片模式）
+        </button>
 
         <button
           onClick={() => {
@@ -402,7 +413,6 @@ export default function Home({ onNavigate }: HomeProps) {
         )}
       </main>
 
-      <CameraModal isOpen={isCameraOpen} onClose={() => setIsCameraOpen(false)} />
       <AddWordModal
         isOpen={isAddOpen}
         onClose={() => setIsAddOpen(false)}

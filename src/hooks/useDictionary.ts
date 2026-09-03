@@ -275,48 +275,57 @@ export function useDictionary() {
     }
   }, []);
 
-  const fetchWordInfo = useCallback(async (english: string): Promise<{ chinese: string; pos: string; phonetic?: string }> => {
+  // 音标 / 词性：优先走服务端 /api/dictionary（含国内有道兜底，境内可达），失败再直连 dictionaryapi.dev
+  const fetchPhonetics = useCallback(async (english: string): Promise<{ phonetic?: string; phoneticUK?: string; pos: string }> => {
+    const word = english.trim();
+    try {
+      const dr = await fetch(`/api/dictionary?word=${encodeURIComponent(word)}`, { signal: AbortSignal.timeout(5000) });
+      if (dr.ok) {
+        const dict = await dr.json();
+        const phonetic = typeof dict.phonetic === 'string' && dict.phonetic ? dict.phonetic : undefined;
+        const phoneticUK = typeof dict.phoneticUK === 'string' && dict.phoneticUK ? dict.phoneticUK : undefined;
+        const pos = typeof dict.pos === 'string' ? dict.pos : '';
+        if (phonetic || phoneticUK || pos) {
+          return { phonetic, phoneticUK, pos };
+        }
+      }
+    } catch {}
+    try {
+      const r = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`, { signal: AbortSignal.timeout(4000) });
+      const data = await r.json();
+      if (Array.isArray(data) && data[0]) {
+        const w = data[0];
+        const strip = (s: string) => s.replace(/^\/|\/$/g, '').trim();
+        let phonetic = w.phonetic ? strip(w.phonetic) : undefined;
+        if (Array.isArray(w.phonetics)) {
+          const us = w.phonetics.find((p: { audio?: string; text?: string }) => p.audio && p.audio.includes('-us') && p.text);
+          const any = w.phonetics.find((p: { text?: string }) => p.text);
+          if (us?.text) phonetic = strip(us.text);
+          else if (!phonetic && any?.text) phonetic = strip(any.text);
+        }
+        const pos = w.meanings && w.meanings[0]?.partOfSpeech
+          ? (POS_MAP[w.meanings[0].partOfSpeech] || w.meanings[0].partOfSpeech)
+          : '';
+        if (phonetic || pos) return { phonetic, phoneticUK: undefined, pos };
+      }
+    } catch {}
+    return { phonetic: undefined, phoneticUK: undefined, pos: '' };
+  }, []);
+
+  const fetchWordInfo = useCallback(async (english: string): Promise<{ chinese: string; pos: string; phonetic?: string; phoneticUK?: string }> => {
     setLoading(true);
     setError(null);
 
     try {
-      const [translationRes, dictionaryRes] = await Promise.all([
+      const [translationRes, phoneticsRes] = await Promise.all([
         fetchTranslation(english),
-        fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(english)}`)
-          .then((r) => r.json())
-          .catch(() => null),
+        fetchPhonetics(english).catch(() => ({ phonetic: undefined, phoneticUK: undefined, pos: '' })),
       ]);
 
       const chinese = translationRes || '暂无释义';
-      
-      let pos = '';
-      let phonetic: string | undefined;
-      
-      if (dictionaryRes && Array.isArray(dictionaryRes) && dictionaryRes.length > 0) {
-        const wordData = dictionaryRes[0] as DictionaryResponse;
-        
-        if (wordData.phonetic) {
-          phonetic = wordData.phonetic;
-        } else if (wordData.phonetics && wordData.phonetics.length > 0) {
-          const englishPhonetic = wordData.phonetics.find(p => p.text);
-          if (englishPhonetic?.text) {
-            phonetic = englishPhonetic.text;
-          }
-        }
-        
-        if (wordData.meanings && wordData.meanings.length > 0) {
-          const firstMeaning = wordData.meanings[0];
-          if (firstMeaning.partOfSpeech) {
-            pos = POS_MAP[firstMeaning.partOfSpeech] || firstMeaning.partOfSpeech;
-          }
-        }
-      }
-      
-      if (!pos) {
-        pos = guessPOS(english);
-      }
+      const { phonetic, phoneticUK, pos } = phoneticsRes;
 
-      return { chinese, pos, phonetic };
+      return { chinese, pos: pos || guessPOS(english), phonetic, phoneticUK };
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch word info');
       const chinese = await fetchTranslation(english);
@@ -324,24 +333,25 @@ export function useDictionary() {
     } finally {
       setLoading(false);
     }
-  }, [fetchTranslation]);
+  }, [fetchTranslation, fetchPhonetics]);
 
   const createWord = useCallback(async (english: string): Promise<Word> => {
-    const { chinese, pos, phonetic } = await fetchWordInfo(english);
+    const { chinese, pos, phonetic, phoneticUK } = await fetchWordInfo(english);
     return {
       id: Date.now().toString() + Math.random(),
       english: english.trim(),
       chinese,
       pos,
       phonetic,
+      phoneticUK,
       createdAt: Date.now(),
     };
   }, [fetchWordInfo]);
 
-  const updateWordTranslation = useCallback(async (word: Word): Promise<{ chinese: string; pos: string; phonetic?: string }> => {
-    const { chinese, pos, phonetic } = await fetchWordInfo(word.english);
-    return { chinese, pos, phonetic };
+  const updateWordTranslation = useCallback(async (word: Word): Promise<{ chinese: string; pos: string; phonetic?: string; phoneticUK?: string }> => {
+    const { chinese, pos, phonetic, phoneticUK } = await fetchWordInfo(word.english);
+    return { chinese, pos, phonetic, phoneticUK };
   }, [fetchWordInfo]);
 
-  return { fetchWordInfo, createWord, updateWordTranslation, loading, error };
+  return { fetchWordInfo, fetchPhonetics, createWord, updateWordTranslation, loading, error };
 }

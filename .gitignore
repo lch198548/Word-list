@@ -26,3 +26,6 @@ TENCENT_DEPLOY.md
 *.njsproj
 *.sln
 *.sw?
+
+# WorkBuddy project memory (not source)
+.workbuddy/

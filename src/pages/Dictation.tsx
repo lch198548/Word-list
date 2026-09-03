@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ArrowLeft, Headphones } from 'lucide-react';
 import { DictationPlayer } from '../components/DictationPlayer';
 import { DictationResult } from '../components/DictationResult';
+import { DictationSettings } from '../components/DictationSettings';
 import { useWordStore } from '../stores/wordStore';
 import { DictationResult as ResultType, Word } from '../types';
 
@@ -9,73 +10,42 @@ interface DictationProps {
   onNavigate: (path: string) => void;
 }
 
+type Phase = 'config' | 'playing' | 'result';
+
 export default function Dictation({ onNavigate }: DictationProps) {
   const { getWordsForDictation, settings } = useWordStore();
+  const [phase, setPhase] = useState<Phase>('config');
   const [words, setWords] = useState<Word[]>([]);
   const [results, setResults] = useState<ResultType[]>([]);
-  const [isFinished, setIsFinished] = useState(false);
 
-  useEffect(() => {
-    const dictationWords = getWordsForDictation();
-    setWords(dictationWords);
-  }, []);
+  const selectedCount = getWordsForDictation().length;
+
+  const handleStart = () => {
+    const ws = getWordsForDictation();
+    if (ws.length === 0) {
+      alert('请先在首页勾选要听写的单词');
+      return;
+    }
+    setWords(ws);
+    setPhase('playing');
+  };
 
   const handleComplete = (dictationResults: ResultType[]) => {
     setResults(dictationResults);
-    setIsFinished(true);
+    setPhase('result');
   };
 
   const handleRestart = () => {
-    setWords(getWordsForDictation());
+    const ws = getWordsForDictation();
+    setWords(ws);
     setResults([]);
-    setIsFinished(false);
+    setPhase('playing');
   };
 
-  const handleHome = () => {
-    onNavigate('/');
-  };
+  const handleHome = () => onNavigate('/');
 
-  if (words.length === 0 && !isFinished) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50">
-        <header className="bg-white/80 backdrop-blur-md border-b border-gray-100 sticky top-0 z-40">
-          <div className="max-w-md mx-auto px-4 py-4">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => onNavigate('/')}
-                className="p-2 rounded-xl hover:bg-gray-100 transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5 text-gray-600" />
-              </button>
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
-                  <Headphones className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold text-gray-800">听写练习</h1>
-                </div>
-              </div>
-            </div>
-          </div>
-        </header>
-        <main className="max-w-md mx-auto px-4 py-6">
-          <div className="text-center py-20">
-            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gray-100 flex items-center justify-center">
-              <Headphones className="w-10 h-10 text-gray-400" />
-            </div>
-            <h2 className="text-xl font-semibold text-gray-800 mb-2">暂无单词</h2>
-            <p className="text-gray-500 mb-6">请先添加单词或选择要听写的单词</p>
-            <button
-              onClick={() => onNavigate('/')}
-              className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-medium"
-            >
-              返回首页
-            </button>
-          </div>
-        </main>
-      </div>
-    );
-  }
+  const title =
+    phase === 'config' ? '听写设置' : phase === 'playing' ? '听写练习' : '听写结果';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50">
@@ -84,8 +54,10 @@ export default function Dictation({ onNavigate }: DictationProps) {
           <div className="flex items-center gap-3">
             <button
               onClick={() => {
-                if (window.confirm('确定退出听写吗？进度将不会保存。')) {
-                  onNavigate('/');
+                if (phase === 'playing') {
+                  if (window.confirm('确定退出听写吗？进度将不会保存。')) handleHome();
+                } else {
+                  handleHome();
                 }
               }}
               className="p-2 rounded-xl hover:bg-gray-100 transition-colors"
@@ -97,10 +69,18 @@ export default function Dictation({ onNavigate }: DictationProps) {
                 <Headphones className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-800">听写练习</h1>
-                <p className="text-xs text-gray-500">
-                  {settings.mode === 'chinese' ? '听中文写英文' : '听英文写中文'}
-                </p>
+                <h1 className="text-xl font-bold text-gray-800">{title}</h1>
+                {phase === 'config' && (
+                  <p className="text-xs text-gray-500">设置参数后开始听写</p>
+                )}
+                {phase === 'playing' && (
+                  <p className="text-xs text-gray-500">
+                    {settings.mode === 'chinese' ? '听中文写英文' : '听英文写中文'}
+                  </p>
+                )}
+                {phase === 'result' && (
+                  <p className="text-xs text-gray-500">本次听写已完成</p>
+                )}
               </div>
             </div>
           </div>
@@ -108,18 +88,39 @@ export default function Dictation({ onNavigate }: DictationProps) {
       </header>
 
       <main className="max-w-md mx-auto px-4 py-6">
-        {isFinished ? (
+        {phase === 'config' && (
+          <>
+            <DictationSettings />
+            <button
+              onClick={handleStart}
+              disabled={selectedCount === 0}
+              className="w-full mt-6 py-4 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-bold text-lg hover:from-blue-600 hover:to-cyan-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-200 flex items-center justify-center gap-2"
+            >
+              <Headphones className="w-6 h-6" />
+              开始听写（{selectedCount} 个单词）
+            </button>
+            {selectedCount === 0 && (
+              <p className="text-center text-gray-500 text-sm mt-3">
+                请先在首页勾选要听写的单词
+              </p>
+            )}
+          </>
+        )}
+
+        {phase === 'playing' && (
+          <DictationPlayer
+            words={words}
+            settings={settings}
+            onComplete={handleComplete}
+          />
+        )}
+
+        {phase === 'result' && (
           <DictationResult
             results={results}
             settings={settings}
             onRestart={handleRestart}
             onHome={handleHome}
-          />
-        ) : (
-          <DictationPlayer
-            words={words}
-            settings={settings}
-            onComplete={handleComplete}
           />
         )}
       </main>
